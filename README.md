@@ -1,1 +1,266 @@
 # ZAMQIS-stur
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toko Diamond</title>
+<style>
+:root{--bg:#0f1220;--card:#1a1f36;--tx:#eef0ff;--mut:#8b90b0;--ac:#6c7bff;--wa:#25d366;--bd:#2a3050}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+#app{max-width:520px;margin:auto;padding:16px}
+h1{font-size:22px;margin:8px 0 16px}
+h2{font-size:15px;color:var(--mut);margin:20px 0 8px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:var(--card);border:2px solid var(--bd);border-radius:12px;padding:14px;color:var(--tx);text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:4px;font-size:15px}
+.card span{color:var(--mut);font-size:13px}
+.card.on{border-color:var(--ac)}
+.box{background:var(--card);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+input,select,textarea{width:100%;padding:11px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:15px}
+button{padding:12px;border:0;border-radius:8px;background:var(--ac);color:#fff;font-size:15px;cursor:pointer}
+button.wa{background:var(--wa);color:#000;font-weight:600}
+button.del{background:#c0392b;padding:8px 12px}
+.row{display:flex;gap:8px}
+.row input:first-child{flex:2}
+footer{margin:24px 0;text-align:center}
+a{color:var(--ac)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const KEY='tokoDiamond';
+const DEF={store:'Toko Diamond',wa:'6281234567890',pin:'1234',
+ pays:['DANA','OVO','QRIS','Transfer Bank'],
+ items:[{id:1,name:'86 Diamond',price:20000},{id:2,name:'172 Diamond',price:40000},
+        {id:3,name:'257 Diamond',price:60000},{id:4,name:'706 Diamond',price:160000}]};
+let cfg=load(),sel=null,authed=false;
+const $=s=>document.querySelector(s);
+const rp=n=>'Rp'+Number(n).toLocaleString('id-ID');
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(DEF)}catch(e){return structuredClone(DEF)}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(cfg))}catch(e){}}
+
+/* ===== HALAMAN UTAMA ===== */
+function home(){
+ $('#app').innerHTML=`
+ <h1>💎 ${esc(cfg.store)}</h1>
+ <h2>Pilih Paket</h2>
+ <div class="grid">${cfg.items.map(i=>`
+  <button class="card" data-id="${i.id}" onclick="pick(${i.id})">
+   <b>${esc(i.name)}</b><span>${rp(i.price)}</span></button>`).join('')}</div>
+ <h2>Data Pemesan</h2>
+ <div class="box">
+  <input id="gid" placeholder="ID Game">
+  <input id="srv" placeholder="Server (opsional)">
+  <input id="nick" placeholder="Nickname">
+  <select id="pay">${cfg.pays.map(p=>`<option>${esc(p)}</option>`).join('')}</select>
+  <button class="wa" onclick="order()">Bayar via WhatsApp</button>
+ </div>
+ <footer><a href="#admin">Admin</a></footer>`;
+ sel=null;
+}
+function pick(id){
+ sel=id;
+ document.querySelectorAll('.card').forEach(c=>c.classList.toggle('on',c.dataset.id==id));
+}
+function order(){
+ const it=cfg.items.find(i=>i.id===sel);
+ if(!it)return alert('Pilih paket dulu');
+ const gid=$('#gid').value.trim();
+ if(!gid)return alert('Isi ID Game');
+ const msg=`Halo ${cfg.store}, saya mau order:
+- Paket: ${it.name}
+- Harga: ${rp(it.price)}
+- ID Game: ${gid}${$('#srv').value?' ('+$('#srv').value+')':''}
+- Nickname: ${$('#nick').value||'-'}
+- Pembayaran: ${$('#pay').value}`;
+ window.open('https://wa.me/'+cfg.wa+'?text='+encodeURIComponent(msg),'_blank');
+}
+
+/* ===== HALAMAN ADMIN ===== */
+function admin(){
+ if(!authed){
+  $('#app').innerHTML=`<h1>🔒 Admin</h1>
+  <div class="box"><input id="pin" type="password" placeholder="PIN admin">
+  <button onclick="login()">Masuk</button></div>
+  <footer><a href="#">← Ke toko</a></footer>`;
+  return;
+ }
+ $('#app').innerHTML=`<h1>⚙️ Admin</h1>
+ <h2>Pengaturan Toko</h2>
+ <div class="box">
+  <input value="${esc(cfg.store)}" placeholder="Nama toko" onchange="cfg.store=this.value;save()">
+  <input value="${esc(cfg.wa)}" placeholder="No WA (62812...)" onchange="cfg.wa=this.value.replace(/\\D/g,'');save()">
+  <input value="${esc(cfg.pays.join(', '))}" placeholder="Metode bayar, pisah koma" onchange="cfg.pays=this.value.split(',').map(s=>s.trim()).filter(Boolean);save()">
+  <input value="${esc(cfg.pin)}" placeholder="PIN admin" onchange="cfg.pin=this.value;save()">
+ </div>
+ <h2>Menu / Produk</h2>
+ <div class="box">
+  ${cfg.items.map(i=>`<div class="row">
+   <input value="${esc(i.name)}" onchange="setItem(${i.id},'name',this.value)">
+   <input type="number" value="${i.price}" onchange="setItem(${i.id},'price',this.value)">
+   <button class="del" onclick="del(${i.id})">✕</button></div>`).join('')}
+  <button onclick="add()">+ Tambah produk</button>
+ </div>
+ <h2>Backup / Pindah Data</h2>
+ <div class="box">
+  <textarea id="js" rows="5">${esc(JSON.stringify(cfg))}</textarea>
+  <button onclick="imp()">Terapkan config</button>
+ </div>
+ <footer><a href="#">← Ke toko</a> · <a href="#" onclick="authed=false">Keluar</a></footer>`;
+}
+function login(){
+ if($('#pin').value===cfg.pin){authed=true;admin()}else alert('PIN salah');
+}
+function setItem(id,k,v){
+ const it=cfg.items.find(i=>i.id===id);
+ it[k]=k==='price'?+v:v;save();
+}
+function add(){cfg.items.push({id:Date.now(),name:'Paket baru',price:10000});save();admin()}
+function del(id){cfg.items=cfg.items.filter(i=>i.id!==id);save();admin()}
+function imp(){
+ try{cfg=JSON.parse($('#js').value);save();admin();alert('Berhasil')}
+ catch(e){alert('Format JSON salah')}
+}
+
+/* ===== ROUTER ===== */
+function route(){location.hash==='#admin'?admin():home()}
+addEventListener('hashchange',route);
+route();
+</script>
+</body>
+</html><!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toko Diamond</title>
+<style>
+:root{--bg:#0f1220;--card:#1a1f36;--tx:#eef0ff;--mut:#8b90b0;--ac:#6c7bff;--wa:#25d366;--bd:#2a3050}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+#app{max-width:520px;margin:auto;padding:16px}
+h1{font-size:22px;margin:8px 0 16px}
+h2{font-size:15px;color:var(--mut);margin:20px 0 8px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card{background:var(--card);border:2px solid var(--bd);border-radius:12px;padding:14px;color:var(--tx);text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:4px;font-size:15px}
+.card span{color:var(--mut);font-size:13px}
+.card.on{border-color:var(--ac)}
+.box{background:var(--card);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+input,select,textarea{width:100%;padding:11px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:15px}
+button{padding:12px;border:0;border-radius:8px;background:var(--ac);color:#fff;font-size:15px;cursor:pointer}
+button.wa{background:var(--wa);color:#000;font-weight:600}
+button.del{background:#c0392b;padding:8px 12px}
+.row{display:flex;gap:8px}
+.row input:first-child{flex:2}
+footer{margin:24px 0;text-align:center}
+a{color:var(--ac)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const KEY='tokoDiamond';
+const DEF={store:'Toko Diamond',wa:'6281234567890',pin:'1234',
+ pays:['DANA','OVO','QRIS','Transfer Bank'],
+ items:[{id:1,name:'86 Diamond',price:20000},{id:2,name:'172 Diamond',price:40000},
+        {id:3,name:'257 Diamond',price:60000},{id:4,name:'706 Diamond',price:160000}]};
+let cfg=load(),sel=null,authed=false;
+const $=s=>document.querySelector(s);
+const rp=n=>'Rp'+Number(n).toLocaleString('id-ID');
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||structuredClone(DEF)}catch(e){return structuredClone(DEF)}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(cfg))}catch(e){}}
+
+/* ===== HALAMAN UTAMA ===== */
+function home(){
+ $('#app').innerHTML=`
+ <h1>💎 ${esc(cfg.store)}</h1>
+ <h2>Pilih Paket</h2>
+ <div class="grid">${cfg.items.map(i=>`
+  <button class="card" data-id="${i.id}" onclick="pick(${i.id})">
+   <b>${esc(i.name)}</b><span>${rp(i.price)}</span></button>`).join('')}</div>
+ <h2>Data Pemesan</h2>
+ <div class="box">
+  <input id="gid" placeholder="ID Game">
+  <input id="srv" placeholder="Server (opsional)">
+  <input id="nick" placeholder="Nickname">
+  <select id="pay">${cfg.pays.map(p=>`<option>${esc(p)}</option>`).join('')}</select>
+  <button class="wa" onclick="order()">Bayar via WhatsApp</button>
+ </div>
+ <footer><a href="#admin">Admin</a></footer>`;
+ sel=null;
+}
+function pick(id){
+ sel=id;
+ document.querySelectorAll('.card').forEach(c=>c.classList.toggle('on',c.dataset.id==id));
+}
+function order(){
+ const it=cfg.items.find(i=>i.id===sel);
+ if(!it)return alert('Pilih paket dulu');
+ const gid=$('#gid').value.trim();
+ if(!gid)return alert('Isi ID Game');
+ const msg=`Halo ${cfg.store}, saya mau order:
+- Paket: ${it.name}
+- Harga: ${rp(it.price)}
+- ID Game: ${gid}${$('#srv').value?' ('+$('#srv').value+')':''}
+- Nickname: ${$('#nick').value||'-'}
+- Pembayaran: ${$('#pay').value}`;
+ window.open('https://wa.me/'+cfg.wa+'?text='+encodeURIComponent(msg),'_blank');
+}
+
+/* ===== HALAMAN ADMIN ===== */
+function admin(){
+ if(!authed){
+  $('#app').innerHTML=`<h1>🔒 Admin</h1>
+  <div class="box"><input id="pin" type="password" placeholder="PIN admin">
+  <button onclick="login()">Masuk</button></div>
+  <footer><a href="#">← Ke toko</a></footer>`;
+  return;
+ }
+ $('#app').innerHTML=`<h1>⚙️ Admin</h1>
+ <h2>Pengaturan Toko</h2>
+ <div class="box">
+  <input value="${esc(cfg.store)}" placeholder="Nama toko" onchange="cfg.store=this.value;save()">
+  <input value="${esc(cfg.wa)}" placeholder="No WA (62812...)" onchange="cfg.wa=this.value.replace(/\\D/g,'');save()">
+  <input value="${esc(cfg.pays.join(', '))}" placeholder="Metode bayar, pisah koma" onchange="cfg.pays=this.value.split(',').map(s=>s.trim()).filter(Boolean);save()">
+  <input value="${esc(cfg.pin)}" placeholder="PIN admin" onchange="cfg.pin=this.value;save()">
+ </div>
+ <h2>Menu / Produk</h2>
+ <div class="box">
+  ${cfg.items.map(i=>`<div class="row">
+   <input value="${esc(i.name)}" onchange="setItem(${i.id},'name',this.value)">
+   <input type="number" value="${i.price}" onchange="setItem(${i.id},'price',this.value)">
+   <button class="del" onclick="del(${i.id})">✕</button></div>`).join('')}
+  <button onclick="add()">+ Tambah produk</button>
+ </div>
+ <h2>Backup / Pindah Data</h2>
+ <div class="box">
+  <textarea id="js" rows="5">${esc(JSON.stringify(cfg))}</textarea>
+  <button onclick="imp()">Terapkan config</button>
+ </div>
+ <footer><a href="#">← Ke toko</a> · <a href="#" onclick="authed=false">Keluar</a></footer>`;
+}
+function login(){
+ if($('#pin').value===cfg.pin){authed=true;admin()}else alert('PIN salah');
+}
+function setItem(id,k,v){
+ const it=cfg.items.find(i=>i.id===id);
+ it[k]=k==='price'?+v:v;save();
+}
+function add(){cfg.items.push({id:Date.now(),name:'Paket baru',price:10000});save();admin()}
+function del(id){cfg.items=cfg.items.filter(i=>i.id!==id);save();admin()}
+function imp(){
+ try{cfg=JSON.parse($('#js').value);save();admin();alert('Berhasil')}
+ catch(e){alert('Format JSON salah')}
+}
+
+/* ===== ROUTER ===== */
+function route(){location.hash==='#admin'?admin():home()}
+addEventListener('hashchange',route);
+route();
+</script>
+</body>
+</html>
